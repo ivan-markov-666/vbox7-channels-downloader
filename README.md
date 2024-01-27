@@ -1,7 +1,7 @@
 ### WARNING ###
 This project will be updated soon. The current version is working good, but the most of the videos are splitted in audio and video files. The new version will use FFMPEG to merge the audio and video files into one file using new command. The new version will be released very soon, so stay tuned.
 
-# IF YOU ARE BULGARIAN READ ПРОЧЕТИ-МЕ.md FILE. #
+## Ако разбираш това виж файл ПРОЧЕТИ-МЕ.md ##
 
 ### Description ###
 This is small project for downloading whole Vbox7 channels. It is written in Node.js and uses Selenium and Puppeteer for scraping the data.  
