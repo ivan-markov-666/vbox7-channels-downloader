@@ -9,7 +9,7 @@ require('dotenv').config();
 
 
 
-const vbox7ChannelUrl = 'https://www.vbox7.com/user:facingthesunofficial';
+const vbox7ChannelUrl = 'https://www.vbox7.com/user:kopy';
 const vbox7ChannelName = '//*[@class="left-col"]//h2//span';
 const channelPages = `//*[@class='page-link']`;
 const acceptCookiesButton = `//*[@id='didomi-notice-agree-button']`;
@@ -75,12 +75,35 @@ async function vbox7() {
                     // Извикване на extractMp4Urls за да получите MP4 файловете от страницата
                     const mp4Files = await extractMp4Urls(videoUrl);
                     const uniqueMp4Files = uniqueMp4Urls(mp4Files);
-                    const filteredMp4Files = filterMp4Tracks(uniqueMp4Files);
 
-                    if (filteredMp4Files.length === 0) {
-                        console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}`);
-                        videoRetryCount++;
-                        continue;
+
+                    // Define the strings that we are looking for in the array of mp4 files.
+                    const audioFileExist = "track1";
+                    const videoFileExist = "track2";
+
+                    let filteredMp4Files: string[] = [];
+                    if (uniqueMp4Files.some(element => element.includes(audioFileExist)) || uniqueMp4Files.some(element => element.includes(videoFileExist))) {
+                        console.log("Видеата се намират на новите сървъри на vbox7.");
+                        filteredMp4Files = filterMp4Tracks(uniqueMp4Files);
+
+                        if (filteredMp4Files.length === 0) {
+                            console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}`);
+                            videoRetryCount++;
+                            continue;
+                        }
+                    }
+                    else if (!uniqueMp4Files.some(element => element.includes(audioFileExist)) && !uniqueMp4Files.some(element => element.includes(videoFileExist))) {
+                        console.log("Видеата се намират на старите сървъри на vbox7.");
+                        filteredMp4Files = filterNonBlankTracks(uniqueMp4Files);
+
+                        if (filteredMp4Files.length === 0) {
+                            console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}`);
+                            videoRetryCount++;
+                            continue;
+                        }
+                    }
+                    else {
+                        throw new Error("Изглежда, че mp4 файловете не идват нито от старите, нито от новите сървъри на Vbox7, или има друга грешка. При всяка вероятност трябва да се разбере, защо сме изпаднали в този statement. Тоест... happy debbuging :) !");
                     }
 
                     // Сваляне на MP4 файловете от страницата и записването им в папката за сваляне
@@ -95,8 +118,11 @@ async function vbox7() {
                                 } else if (filteredMp4Files[fileIndex].includes('track2')) {
                                     await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}-audio.mp4`);
                                 }
+                                else if (filteredMp4Files[fileIndex] && fileIndex == 0) {
+                                    await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}.mp4`);
+                                }
                                 else {
-                                    throw new Error(`Изглежда, че в подадените mp4 файлове липсва 'track1' или 'track2' стойност. Тоест имаме трети случай, който трябва да разгледаме.`);
+                                    throw new Error(`Изглежда, че не са подадени mp4 файлове за сваляне. Този statement не трябва да се случва. Вероятно има друг сценарий (за начина по който Vbox7 предоставят видеата си) който не е обхванат тук. Тоест happy debbuging :) !`);
                                 }
                                 console.log(`Файлът е успешно свален след ${retry + 1} опит(а).`);
                                 break;
@@ -231,6 +257,12 @@ function uniqueMp4Urls(mp4Urls: string[]): string[] {
 function filterMp4Tracks(mp4Urls: string[]): string[] {
     return mp4Urls.filter(url => url.includes('track1') || url.includes('track2'));
 }
+
+// Филтриране на MP4 файловете по определени критерии (използва си при вземане на MP4 файловете)
+function filterNonBlankTracks(mp4Urls: string[]): string[] {
+    return mp4Urls.filter(url => !url.includes('blank'));
+}
+
 
 // Метод за изтегляне на MP4 файлове
 async function downloadMp4File(url: string, filePath: string): Promise<void> {
