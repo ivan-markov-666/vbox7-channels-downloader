@@ -15,10 +15,11 @@ The most of the comments in the code are in Bulgarian, because the project is fo
 1. Clone the repository and navigate to the project (root) directory  
 2. Run `npm install` command in the terminal to install all dependencies  
 3. Rename `.env_example` to `.env` and fill the variables with your data  
-- Add the folder where you want to save the videos in 'DOWNLOAD_FOLDER_PATH' variable. You can use absolute or relative path.
-- Add the channels you want to download in a TXT file in 'DOWNLOAD_CHANNELS_TXT_FILE_PATH' variable. You can use absolute or relative path.
+- Add the folder where you want to save the videos in 'DOWNLOAD_FOLDER_PATH' variable.
+    That means you need to provide empty folder path in the '.env' file. You can use absolute or relative path.
+- Add the channels you want to download in a TXT file in 'DOWNLOAD_CHANNELS_TXT_FILE_PATH' variable.
+    That means you need to create new txt file and put there URLs of the channels, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.
     It is IMPORTANT to add one channel per line! 
-
 
 ### Usage ###
 1. Run `npm run vbox7` command in the terminal to start scraping
