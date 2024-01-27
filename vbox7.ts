@@ -8,6 +8,7 @@ import 'chromedriver';
 import axios from 'axios';
 import fs from 'fs';
 import * as puppeteer from 'puppeteer'; // Използвайте такова импортиране за TypeScript
+import { Options } from 'selenium-webdriver/chrome';
 
 require('dotenv').config();
 
@@ -20,10 +21,9 @@ if (downloadFolder == null) {
     informMessage(`Стойността на downloadFolder е ${downloadFolder} и е валидна.`);
 }
 if (!isDirectoryExists(downloadFolder)) {
-    errorMessage(`Папката ${downloadFolder} НЕ съществува. Ще я създам за теб.`);
+    alertMessage(`Папката ${downloadFolder} НЕ съществува. Ще я създам за теб.`);
     createFolderIfNotExists(downloadFolder);
 }
-
 
 const downloadChannelsTxtFilePath = process.env.DOWNLOAD_CHANNELS_TXT_FILE_PATH;
 // Проверка с оператора == null
@@ -37,6 +37,21 @@ if (downloadChannelsTxtFilePath == null) {
 const fileExists = doesFileExist(downloadChannelsTxtFilePath);
 if (!fileExists) {
     throw new Error(`Файлът ${downloadChannelsTxtFilePath} НЕ съществува. Създайте го и добавете vbox7 каналите за сваляне в него.`);
+}
+
+const headlessMode = process.env.HEADLESS;
+// Проверка с оператора == null
+if (headlessMode == null) {
+    throw new Error('Стойността на headlessMode е null.');
+} else {
+    informMessage(`Стойността на headlessMode е ${headlessMode} и е валидна.`);
+}
+
+// Проверка дали стойността на headlessMode е true или false - тази валидация е lame хак за да се избегне грешката 'This comparison appears to be unintentional because the types '"true"' and '"false"' have no overlap.'.
+if (headlessMode !== 'true') {
+    if (headlessMode !== 'false') {
+        throw new Error(`Стойността на 'HEADLESS' от '.env' файла трябва да е 'true' или 'false'. Изглежда, че стойността е ${headlessMode}, което е различно от 'true' или 'false'. Моля променете стойността на 'HEADLESS' в '.env' файла и опитайте отново.`);
+    }
 }
 
 // Get the current time in unix format
@@ -57,8 +72,27 @@ informMessage(`ЗАПОЧВАМЕ СВАЛЯНЕ НА ВИДЕОТА ОТ VBOX7 
 async function vbox7() {
     // Добавяне на заглавие в log файла
     writeToLogFile(logFilePath, `Ако виждате стойности по-долу в този log файл, това означава, че поради някаква причина някои видеа не са се свалили. Тези видеа са добавени в този log и могат да се свалят ръчно с помоща на един от двата инструмента посочени в секция 'Alternatives' от README.md файла.\n\nВидеа които не са се свалили:\n\n`);
-    // Стартиране на Chrome браузъра използвайки selenium-webdriver и chromedriver.
-    let driver = await new Builder().forBrowser('chrome').build();
+
+    // Да си дефинираме драйвъра
+    let driver;
+
+    // И да решим дали ще е headless или не
+    if (headlessMode === 'true') {
+        // Настройка на опции за Chrome, за да работи в headless режим
+        let chromeOptions = new Options();
+        chromeOptions.addArguments("--headless");
+
+        // Стартиране на Chrome браузъра в headless режим
+        driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
+    }
+    else if (headlessMode === 'false') {
+        // // Стартиране на Chrome браузъра използвайки selenium-webdriver и chromedriver.
+        driver = await new Builder().forBrowser('chrome').build();
+    }
+    else {
+        throw new Error(`Тази грешка НИКОГА не трябва да се случва. Все пак ако се случи, виж повече информация: Стойността на 'HEADLESS' от '.env' файла трябва да е 'true' или 'false'. Изглежда, че стойността е ${headlessMode}, което е различно от 'true' или 'false'. Моля променете стойността на 'HEADLESS' в '.env' файла и опитайте отново.`);
+    }
+
     // Започва се...
     try {
         // Въртим толкова пъти, колкото канала сме вкарали в txt файла
@@ -276,8 +310,7 @@ async function isElementPresent(driver: WebDriver, by: By, timeout: number): Pro
     }
 }
 
-
-
+// Навигиране до URL и изчакване на зареждането на страницата
 async function navigateAndWaitForPageLoad(driver: WebDriver, url: string): Promise<void> {
     await driver.get(url); // Навигира до URL
     await driver.wait(async () => {
@@ -302,6 +335,7 @@ async function getElementText(element: WebElement): Promise<string> {
     return await element.getText();
 }
 
+// Метод за извличане на MP4 файлове от страница
 async function extractMp4Urls(url: string): Promise<string[]> { // Типизиране на 'url' и връщаемия тип
     const browser = await puppeteer.launch({
         headless: "new" // Използване на новия headless режим
@@ -352,7 +386,6 @@ function filterNonBlankTracks(mp4Urls: string[]): string[] {
     return mp4Urls.filter(url => !url.includes('blank'));
 }
 
-
 // Метод за изтегляне на MP4 файлове
 async function downloadMp4File(url: string, filePath: string): Promise<void> {
     const response = await axios({
@@ -360,34 +393,13 @@ async function downloadMp4File(url: string, filePath: string): Promise<void> {
         url: url,
         responseType: 'stream'
     });
-
     const writer = fs.createWriteStream(filePath);
-
     response.data.pipe(writer);
 
     return new Promise((resolve, reject) => {
         writer.on('finish', resolve);
         writer.on('error', reject);
     });
-}
-
-
-// Метод за изтегляне на MP4 файлове
-async function createOrDeleteFolder(folderPath: string) {
-    try {
-        // Проверете дали папката съществува
-        if (fs.existsSync(folderPath)) {
-            // Ако папката съществува, я изтрийте
-            fs.rmdirSync(folderPath, { recursive: true });
-            console.log(`Папката "${folderPath}" беше изтрита.`);
-        }
-
-        // Създайте новата папка
-        fs.mkdirSync(folderPath);
-        console.log(`Създадена нова папка "${folderPath}".`);
-    } catch (err) {
-        console.error('Възникна грешка при създаване или изтриване на папката:', err);
-    }
 }
 
 // Метод за саниране на името на файла (заместване на недопустимите символи)
@@ -414,16 +426,6 @@ function writeToLogFile(logFilePath: string, message: string) {
         fs.appendFileSync(logFilePath, logMessage, 'utf8');
     } catch (error) {
         console.error(`Грешка при запис в log файла: ${error}`);
-    }
-}
-
-// Метод за изтриване на файл
-function deleteFile(filePath: string) {
-    try {
-        fs.unlinkSync(filePath);
-        console.log(`Файлът '${filePath}' беше успешно изтрит.`);
-    } catch (error) {
-        console.error(`Грешка при изтриване на файла: ${error}`);
     }
 }
 
