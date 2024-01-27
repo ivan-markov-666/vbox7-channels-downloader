@@ -32,7 +32,7 @@ async function vbox7() {
         const channelNameElement = await findElement(driver, vbox7ChannelName);
         const channelName = await getElementText(channelNameElement);
         // Създаване на нова папка за свалянето на видео файловете от конкретния канал в vbox7
-        const folderPath = `${downloadFolder}/${channelName}`;
+        const folderPath = `${downloadFolder}/${sanitizeFileName(channelName)}`;
         createOrDeleteFolder(folderPath);
 
         // Проверка дали елементът allPages съществува
@@ -40,80 +40,84 @@ async function vbox7() {
         console.log(`Елементът allPages съществува: ${allPagesExistsBoolean}`);
 
         let allPagesExists = 0;
-
         if (allPagesExistsBoolean) {
             const getChannelPages = await countElements(driver, channelPages);
             const channelPagesAllPagesCounted = `(${channelPages})[${getChannelPages - 1}]`;
             const allPagesExistsText = await getElementText(await findElement(driver, channelPagesAllPagesCounted));
-
             // Convert allPagesExistsText from string to number
             allPagesExists = parseInt(allPagesExistsText, 10);
-
             console.log(`--------------------- All pages for that channel: ${allPagesExists}`);
-            // Your code for when the element exists
         } else {
             // Your code for when the element does not exist
         }
 
-
         // Минаване през всички страници на канала
-        for (let i = 1; i <= allPagesExists; i++) {
-            const currentPageUrl = `${vbox7ChannelUrl}?page=${i}`;
-            console.log(`---------------------: ${currentPageUrl}`);
+        for (let pageIndex = 1; pageIndex <= allPagesExists; pageIndex++) {
+            const currentPageUrl = `${vbox7ChannelUrl}?page=${pageIndex}`;
             // Навигиране до текущата страница
             await navigateAndWaitForPageLoad(driver, currentPageUrl);
             // Вземане на всички видеа на текущата страница
             const allVideos = await countElements(driver, allVideosInThatPage);
             // Минаване през всички видеа на текущата страница
-            for (let i = 1; i <= allVideos; i++) {
-                // Get the locator of element that we are using to navigate to the video page and click on it.
-                let videoLinkLocator = `(${allVideosInThatPage})[${i}]`;
-                console.log(videoLinkLocator);
-                // Get the link of the video.
-                const videoLink = await findElement(driver, videoLinkLocator);
-                // Get the name of the video.
-                const videoName = await getElementText(videoLink);
-                // Get the URL of the video.
-                const videoUrl = await getAttributeOfElement(driver, videoLinkLocator, "href");
-                // Извикване на extractMp4Urls за да получите MP4 файловете от страницата
-                const mp4Files = await extractMp4Urls(videoUrl);
-                const uniqueMp4Files = uniqueMp4Urls(mp4Files);
-                const filteredMp4Files = filterMp4Tracks(uniqueMp4Files);
-                console.log("Филтрирани MP4 файлове:", filteredMp4Files);
+            for (let videoIndex = 1; videoIndex <= allVideos; videoIndex++) {
+                let videoRetryCount = 0;
+                const maxVideoRetries = 3;
 
-                // Сваляне на MP4 файловете от страницата и записването им в папката за сваляне
-                for (let i = 0; i < filteredMp4Files.length; i++) {
-                    // Саниране на името на видео файла (заместване на недопустимите символи)
-                    const sanitizedVideoName = sanitizeFileName(videoName);
-                    if (filteredMp4Files[i].includes('track1')) {
-                        await downloadMp4File(filteredMp4Files[i], `${folderPath}/${sanitizedVideoName}-video.mp4`)
-                            .then(() => console.log('Видео файлът е успешно свален!'))
-                            .catch(error => console.error('Възникна грешка при свалянето на видео файла:', error));
+                while (videoRetryCount < maxVideoRetries) {
+                    // Get the locator of element that we are using to navigate to the video page and click on it.
+                    let videoLinkLocator = `(${allVideosInThatPage})[${videoIndex}]`;
+                    // Get the link of the video.
+                    const videoLink = await findElement(driver, videoLinkLocator);
+                    // Get the name of the video.
+                    const videoName = await getElementText(videoLink);
+                    // Get the URL of the video.
+                    const videoUrl = await getAttributeOfElement(driver, videoLinkLocator, "href");
+                    // Извикване на extractMp4Urls за да получите MP4 файловете от страницата
+                    const mp4Files = await extractMp4Urls(videoUrl);
+                    const uniqueMp4Files = uniqueMp4Urls(mp4Files);
+                    const filteredMp4Files = filterMp4Tracks(uniqueMp4Files);
+
+                    if (filteredMp4Files.length === 0) {
+                        console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}`);
+                        videoRetryCount++;
+                        continue;
                     }
-                    else if (filteredMp4Files[i].includes('track2')) {
-                        await downloadMp4File(filteredMp4Files[i], `${folderPath}/${sanitizedVideoName}-audio.mp4`)
-                            .then(() => console.log('Аудио файлът е успешно свален!'))
-                            .catch(error => console.error('Възникна грешка при свалянето на аудио файла:', error));
+
+                    // Сваляне на MP4 файловете от страницата и записването им в папката за сваляне
+                    for (let fileIndex = 0; fileIndex < filteredMp4Files.length; fileIndex++) {
+                        // Саниране на името на видео файла (заместване на недопустимите символи)
+                        const sanitizedVideoName = sanitizeFileName(videoName);
+                        const maxRetries = 3;
+                        for (let retry = 0; retry < maxRetries; retry++) {
+                            try {
+                                if (filteredMp4Files[fileIndex].includes('track1')) {
+                                    await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}-video.mp4`);
+                                } else if (filteredMp4Files[fileIndex].includes('track2')) {
+                                    await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}-audio.mp4`);
+                                }
+                                else {
+                                    throw new Error(`Изглежда, че в подадените mp4 файлове липсва 'track1' или 'track2' стойност. Тоест имаме трети случай, който трябва да разгледаме.`);
+                                }
+                                console.log(`Файлът е успешно свален след ${retry + 1} опит(а).`);
+                                break;
+                            } catch (error) {
+                                console.error(`Грешка при свалянето на файла. Опит ${retry + 1} от ${maxRetries}:`, error);
+                                console.log(`Видео файл с име: ${videoName} и URL адрес: ${videoUrl} не беше свален.`)
+                                if (retry === maxRetries - 1) {
+                                    console.log("Достигнат максимален брой опити за сваляне. Продължавам със следващия файл.");
+                                }
+                            }
+                        }
                     }
-                    else if (filteredMp4Files[i] == null) {
-                        // Искам да пробвам пак да го сваля отново
-                    }
-                    else {
-                        throw new Error(`Изглежда, че в подадените mp4 файлове липсва 'track1' или 'track2' стойност. Тоест имаме трети случай, който трябва да разгледаме.`);
-                    }
+                    break; // Излизаме от while цикъла, ако успешно извлечем и свалим файловете
                 }
-
-
-                console.log("2");
-
-
             }
-
         }
     } finally {
         await driver.quit();
     }
 }
+
 
 vbox7();
 
