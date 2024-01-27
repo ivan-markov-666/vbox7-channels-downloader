@@ -8,134 +8,171 @@ import * as puppeteer from 'puppeteer'; // Използвайте такова �
 require('dotenv').config();
 
 
-
-const vbox7ChannelUrl = 'https://www.vbox7.com/user:kopy';
-const vbox7ChannelName = '//*[@class="left-col"]//h2//span';
-const channelPages = `//*[@class='page-link']`;
-const acceptCookiesButton = `//*[@id='didomi-notice-agree-button']`;
-const allVideosInThatPage = `//*[@class="card video-cell "]/div/h3/a`;
-
 const downloadFolder = process.env.DOWNLOAD_PATH;
 // Проверка с оператора == null
 if (downloadFolder == null) {
     throw new Error('Стойността на downloadFolder е null.');
 } else {
-    console.log('Стойността на downloadFolder не е null и е: ' + downloadFolder);
+    console.error('Стойността на downloadFolder не е null и е: ' + downloadFolder);
 }
+
+const downloadChannelsTxtFilePath = process.env.DOWNLOAD_CHANNELS_TXT_FILE_PATH;
+// Проверка с оператора == null
+if (downloadChannelsTxtFilePath == null) {
+    throw new Error('Стойността на downloadChannelsTxtFilePath е null.');
+} else {
+    console.error('Стойността на downloadChannelsTxtFilePath не е null и е: ' + downloadChannelsTxtFilePath);
+}
+
+// Get the current time in unix format
+const currentTime = getCurrentUnixTime();
+
+const vbox7ChannelName = '//*[@class="left-col"]//h2//span';
+const channelPages = `//*[@class='page-link']`;
+const acceptCookiesButton = `//*[@id='didomi-notice-agree-button']`;
+const allVideosInThatPage = `//*[@class="card video-cell "]/div/h3/a`;
+const logFilePath = `./not-downloaded-videos-${currentTime}.txt`;
+
+const channelsInArray = readLinesFromFile(downloadChannelsTxtFilePath);
+
 
 
 async function vbox7() {
+    // Изтриване на log файла, ако съществува
+    deleteFile(logFilePath);
+    // Добавяне на заглавие в log файла
+    writeToLogFile(logFilePath, `Следните видеа не бяха свалени:\n\n`);
+
     let driver = await new Builder().forBrowser('chrome').build();
     try {
-        await navigateAndWaitForPageLoad(driver, vbox7ChannelUrl);
-        await clickElement(driver, acceptCookiesButton);
-        const channelNameElement = await findElement(driver, vbox7ChannelName);
-        const channelName = await getElementText(channelNameElement);
-        // Създаване на нова папка за свалянето на видео файловете от конкретния канал в vbox7
-        const folderPath = `${downloadFolder}/${sanitizeFileName(channelName)}`;
-        createOrDeleteFolder(folderPath);
 
-        // Проверка дали елементът allPages съществува
-        const allPagesExistsBoolean = await isElementPresent(driver, By.xpath(channelPages), 20000);
-        console.log(`Елементът allPages съществува: ${allPagesExistsBoolean}`);
+        for (let channelIndex = 0; channelIndex < channelsInArray.length; channelIndex++) {
 
-        let allPagesExists = 0;
-        if (allPagesExistsBoolean) {
-            const getChannelPages = await countElements(driver, channelPages);
-            const channelPagesAllPagesCounted = `(${channelPages})[${getChannelPages - 1}]`;
-            const allPagesExistsText = await getElementText(await findElement(driver, channelPagesAllPagesCounted));
-            // Convert allPagesExistsText from string to number
-            allPagesExists = parseInt(allPagesExistsText, 10);
-            console.log(`--------------------- All pages for that channel: ${allPagesExists}`);
-        } else {
-            // Your code for when the element does not exist
-        }
+            const vbox7ChannelUrl = channelsInArray[channelIndex];
+            console.log(`--------------------- Channel URL: ${vbox7ChannelUrl}`);
+            await navigateAndWaitForPageLoad(driver, vbox7ChannelUrl);
+            try {
+                await clickElement(driver, acceptCookiesButton);
+            } catch (error) {
+                console.log("Cookies банерът не съществува.");
+            }
+            const channelNameElement = await findElement(driver, vbox7ChannelName);
+            const channelName = await getElementText(channelNameElement);
+            // Създаване на нова папка за свалянето на видео файловете от конкретния канал в vbox7
+            const folderPath = `${downloadFolder}/${sanitizeFileName(channelName)}`;
+            createOrDeleteFolder(folderPath);
 
-        // Минаване през всички страници на канала
-        for (let pageIndex = 1; pageIndex <= allPagesExists; pageIndex++) {
-            const currentPageUrl = `${vbox7ChannelUrl}?page=${pageIndex}`;
-            // Навигиране до текущата страница
-            await navigateAndWaitForPageLoad(driver, currentPageUrl);
-            // Вземане на всички видеа на текущата страница
-            const allVideos = await countElements(driver, allVideosInThatPage);
-            // Минаване през всички видеа на текущата страница
-            for (let videoIndex = 1; videoIndex <= allVideos; videoIndex++) {
-                let videoRetryCount = 0;
-                const maxVideoRetries = 3;
+            // Проверка дали елементът allPages съществува
+            const allPagesExistsBoolean = await isElementPresent(driver, By.xpath(channelPages), 20000);
+            console.log(`Елементът allPages съществува: ${allPagesExistsBoolean}`);
 
-                while (videoRetryCount < maxVideoRetries) {
-                    // Get the locator of element that we are using to navigate to the video page and click on it.
-                    let videoLinkLocator = `(${allVideosInThatPage})[${videoIndex}]`;
-                    // Get the link of the video.
-                    const videoLink = await findElement(driver, videoLinkLocator);
-                    // Get the name of the video.
-                    const videoName = await getElementText(videoLink);
-                    // Get the URL of the video.
-                    const videoUrl = await getAttributeOfElement(driver, videoLinkLocator, "href");
-                    // Извикване на extractMp4Urls за да получите MP4 файловете от страницата
-                    const mp4Files = await extractMp4Urls(videoUrl);
-                    const uniqueMp4Files = uniqueMp4Urls(mp4Files);
+            let allPagesExists = 0;
+            if (allPagesExistsBoolean) {
+                const getChannelPages = await countElements(driver, channelPages);
+                const channelPagesAllPagesCounted = `(${channelPages})[${getChannelPages - 1}]`;
+                const allPagesExistsText = await getElementText(await findElement(driver, channelPagesAllPagesCounted));
+                // Convert allPagesExistsText from string to number
+                allPagesExists = parseInt(allPagesExistsText, 10);
+                console.log(`--------------------- All pages for that channel: ${allPagesExists}`);
+            } else {
+                // Your code for when the element does not exist
+            }
+
+            // Минаване през всички страници на канала
+            for (let pageIndex = 1; pageIndex <= allPagesExists; pageIndex++) {
+                const currentPageUrl = `${vbox7ChannelUrl}?page=${pageIndex}`;
+                // Навигиране до текущата страница
+                await navigateAndWaitForPageLoad(driver, currentPageUrl);
+                // Вземане на всички видеа на текущата страница
+                const allVideos = await countElements(driver, allVideosInThatPage);
+                // Минаване през всички видеа на текущата страница
+                for (let videoIndex = 1; videoIndex <= allVideos; videoIndex++) {
+                    let videoRetryCount = 0;
+                    const maxVideoRetries = 3;
+
+                    while (videoRetryCount < maxVideoRetries) {
+                        // Get the locator of element that we are using to navigate to the video page and click on it.
+                        let videoLinkLocator = `(${allVideosInThatPage})[${videoIndex}]`;
+                        // Get the link of the video.
+                        const videoLink = await findElement(driver, videoLinkLocator);
+                        // Get the name of the video.
+                        const videoName = await getElementText(videoLink);
+                        // Get the URL of the video.
+                        const videoUrl = await getAttributeOfElement(driver, videoLinkLocator, "href");
+                        // Извикване на extractMp4Urls за да получите MP4 файловете от страницата
+                        const mp4Files = await extractMp4Urls(videoUrl);
+                        const uniqueMp4Files = uniqueMp4Urls(mp4Files);
 
 
-                    // Define the strings that we are looking for in the array of mp4 files.
-                    const audioFileExist = "track1";
-                    const videoFileExist = "track2";
+                        // Define the strings that we are looking for in the array of mp4 files.
+                        const audioFileExist = "track1";
+                        const videoFileExist = "track2";
 
-                    let filteredMp4Files: string[] = [];
-                    if (uniqueMp4Files.some(element => element.includes(audioFileExist)) || uniqueMp4Files.some(element => element.includes(videoFileExist))) {
-                        console.log("Видеата се намират на новите сървъри на vbox7.");
-                        filteredMp4Files = filterMp4Tracks(uniqueMp4Files);
+                        let filteredMp4Files: string[] = [];
+                        if (uniqueMp4Files.some(element => element.includes(audioFileExist)) || uniqueMp4Files.some(element => element.includes(videoFileExist))) {
+                            console.log("Видеата се намират на новите сървъри на vbox7.");
+                            filteredMp4Files = filterMp4Tracks(uniqueMp4Files);
 
-                        if (filteredMp4Files.length === 0) {
-                            console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}`);
-                            videoRetryCount++;
-                            continue;
+                            if (filteredMp4Files.length === 0) {
+                                console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}.`);
+                                videoRetryCount++;
+                                continue;
+                            }
                         }
-                    }
-                    else if (!uniqueMp4Files.some(element => element.includes(audioFileExist)) && !uniqueMp4Files.some(element => element.includes(videoFileExist))) {
-                        console.log("Видеата се намират на старите сървъри на vbox7.");
-                        filteredMp4Files = filterNonBlankTracks(uniqueMp4Files);
+                        else if (!uniqueMp4Files.some(element => element.includes(audioFileExist)) && !uniqueMp4Files.some(element => element.includes(videoFileExist))) {
+                            console.log("Видеото се намира на старите сървъри на vbox7.");
+                            filteredMp4Files = filterNonBlankTracks(uniqueMp4Files);
 
-                        if (filteredMp4Files.length === 0) {
-                            console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}`);
-                            videoRetryCount++;
-                            continue;
+                            if (filteredMp4Files.length === 0) {
+                                console.log(`Неуспешно извличане на MP4 URL адреси за видео номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}`);
+                                videoRetryCount++;
+                                if (videoRetryCount === maxVideoRetries) {
+                                    console.log("Достигнат максимален брой опити за извличане на видео файлове. Продължавам със следващия видео клип.");
+                                    writeToLogFile(logFilePath, `Канал: ${channelName}\n
+                                                                Видео файл с име: ${videoUrl}\n
+                                                                URL адрес на видео файла: ${videoUrl}\n\n`);
+                                }
+                                continue;
+                            }
                         }
-                    }
-                    else {
-                        throw new Error("Изглежда, че mp4 файловете не идват нито от старите, нито от новите сървъри на Vbox7, или има друга грешка. При всяка вероятност трябва да се разбере, защо сме изпаднали в този statement. Тоест... happy debbuging :) !");
-                    }
+                        else {
+                            throw new Error("Изглежда, че mp4 файловете не идват нито от старите, нито от новите сървъри на Vbox7, или има друга грешка. При всяка вероятност трябва да се разбере, защо сме изпаднали в този statement. Тоест... happy debbuging :) !");
+                        }
 
-                    // Сваляне на MP4 файловете от страницата и записването им в папката за сваляне
-                    for (let fileIndex = 0; fileIndex < filteredMp4Files.length; fileIndex++) {
-                        // Саниране на името на видео файла (заместване на недопустимите символи)
-                        const sanitizedVideoName = sanitizeFileName(videoName);
-                        const maxRetries = 3;
-                        for (let retry = 0; retry < maxRetries; retry++) {
-                            try {
-                                if (filteredMp4Files[fileIndex].includes('track1')) {
-                                    await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}-video.mp4`);
-                                } else if (filteredMp4Files[fileIndex].includes('track2')) {
-                                    await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}-audio.mp4`);
-                                }
-                                else if (filteredMp4Files[fileIndex] && fileIndex == 0) {
-                                    await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}.mp4`);
-                                }
-                                else {
-                                    throw new Error(`Изглежда, че не са подадени mp4 файлове за сваляне. Този statement не трябва да се случва. Вероятно има друг сценарий (за начина по който Vbox7 предоставят видеата си) който не е обхванат тук. Тоест happy debbuging :) !`);
-                                }
-                                console.log(`Файлът е успешно свален след ${retry + 1} опит(а).`);
-                                break;
-                            } catch (error) {
-                                console.error(`Грешка при свалянето на файла. Опит ${retry + 1} от ${maxRetries}:`, error);
-                                console.log(`Видео файл с име: ${videoName} и URL адрес: ${videoUrl} не беше свален.`)
-                                if (retry === maxRetries - 1) {
-                                    console.log("Достигнат максимален брой опити за сваляне. Продължавам със следващия файл.");
+                        // Сваляне на MP4 файловете от страницата и записването им в папката за сваляне
+                        for (let fileIndex = 0; fileIndex < filteredMp4Files.length; fileIndex++) {
+                            // Саниране на името на видео файла (заместване на недопустимите символи)
+                            const sanitizedVideoName = sanitizeFileName(videoName);
+                            const maxRetries = 3;
+                            for (let retry = 0; retry < maxRetries; retry++) {
+                                try {
+                                    if (filteredMp4Files[fileIndex].includes('track1')) {
+                                        await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}-video.mp4`);
+                                    } else if (filteredMp4Files[fileIndex].includes('track2')) {
+                                        await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}-audio.mp4`);
+                                    }
+                                    else if (filteredMp4Files[fileIndex] && fileIndex == 0) {
+                                        await downloadMp4File(filteredMp4Files[fileIndex], `${folderPath}/${sanitizedVideoName}.mp4`);
+                                    }
+                                    else {
+                                        throw new Error(`Изглежда, че не са подадени mp4 файлове за сваляне. Този statement не трябва да се случва. Вероятно има друг сценарий (за начина по който Vbox7 предоставят видеата си) който не е обхванат тук. Тоест happy debbuging :) !`);
+                                    }
+                                    console.log(`Файлът е успешно свален след ${retry + 1} опит(а).`);
+                                    break;
+                                } catch (error) {
+                                    console.error(`Грешка при свалянето на файла. Опит ${retry + 1} от ${maxRetries}:`, error);
+                                    console.log(`Видео файл с име: ${videoName} и URL адрес: ${videoUrl} не беше свален.`)
+                                    if (retry === maxRetries) {
+                                        console.log("Достигнат максимален брой опити за сваляне. Продължавам със следващия файл.");
+                                        writeToLogFile(logFilePath, `Канал: ${channelName}\n
+                                                                    Видео файл с име: ${videoUrl}\n
+                                                                    URL адрес на видео файла: ${videoUrl}\n\n`);
+                                    }
                                 }
                             }
                         }
+                        break; // Излизаме от while цикъла, ако успешно извлечем и свалим файловете
                     }
-                    break; // Излизаме от while цикъла, ако успешно извлечем и свалим файловете
                 }
             }
         }
@@ -304,4 +341,41 @@ async function createOrDeleteFolder(folderPath: string) {
 // Метод за саниране на името на файла (заместване на недопустимите символи)
 function sanitizeFileName(fileName: string): string {
     return fileName.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
+// Метод за четене на редове от файл и връщане като масив (използва се при четене на списък с URL адреси)
+function readLinesFromFile(filePath: string) {
+    try {
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        // Разделяне на съдържанието на редове и премахване на символите за нов ред
+        return fileContent.split(/\r?\n/).map(line => line.trim());
+    } catch (error) {
+        console.error(`Грешка при четене на файла: ${error}`);
+        return [];
+    }
+}
+
+// Метод за записване на съобщение в log файл
+function writeToLogFile(logFilePath: string, message: string) {
+    try {
+        const logMessage = `${message}\n`;
+        fs.appendFileSync(logFilePath, logMessage, 'utf8');
+    } catch (error) {
+        console.error(`Грешка при запис в log файла: ${error}`);
+    }
+}
+
+// Метод за изтриване на файл
+function deleteFile(filePath: string) {
+    try {
+        fs.unlinkSync(filePath);
+        console.log(`Файлът '${filePath}' беше успешно изтрит.`);
+    } catch (error) {
+        console.error(`Грешка при изтриване на файла: ${error}`);
+    }
+}
+
+// Вземане на текущото време във unix формат
+function getCurrentUnixTime() {
+    return Math.floor(Date.now() / 1000);
 }
