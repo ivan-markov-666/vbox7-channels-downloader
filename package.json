@@ -1,0 +1,25 @@
+{
+  "name": "vbox7",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "vbox": "ts-node vbox7.ts"
+  },
+  "keywords": [],
+  "author": "Ivan Markov",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.7",
+    "@types/selenium-webdriver": "^4.1.21",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "chromedriver": "^121.0.0",
+    "dotenv": "^16.4.1",
+    "puppeteer": "^21.9.0",
+    "selenium-webdriver": "^4.17.0"
+  }
+}
