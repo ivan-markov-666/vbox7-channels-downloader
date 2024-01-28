@@ -26,7 +26,9 @@ The most of the comments in the code are in Bulgarian, because the project is fo
 
 ### Usage ###
 1. Run `npm run vbox7` command in the terminal to start scraping
-2. If some videos are not downloaded, the names and urls of the videos will be saved in `./logs/not-downloaded-videos-${unix-time}.txt` file. You can download them manually. 
+2. The robot generates two log files.  
+    - The first one is `./logs/all-${unix-time}.txt` and contains the names and urls of the downloaded videos.
+    - The second one is `./logs/not-downloaded-videos-${unix-time}.txt` and contains the names and urls of the videos, that are not downloaded. You can download them manually. 
 3. If you want to download the videos again, you can run `npm run vbox7` command again. The bot will skip the already downloaded videos and will download only the missing ones.
 4. There is a debug mechanism, but you can use it only with VS Code. For more details see the `./.vscode/launch.json` file.
 
