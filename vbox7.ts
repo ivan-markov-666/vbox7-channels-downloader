@@ -5,12 +5,23 @@
 
 import { Builder, WebDriver, WebElement, By, Key, until } from 'selenium-webdriver';
 import 'chromedriver';
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import fs from 'fs';
 import * as puppeteer from 'puppeteer'; // Използвайте такова импортиране за TypeScript
 import { Options } from 'selenium-webdriver/chrome';
 
 require('dotenv').config();
+
+// Get the current time in unix format
+const currentTime = getCurrentUnixTime();
+// Дефинираме локаторите използвани в страниците на vbox7
+const vbox7ChannelName = '//*[@class="left-col"]//h2//span';
+const channelPages = `//*[@class='page-link']`;
+const acceptCookiesButton = `//*[@id='didomi-notice-agree-button']`;
+const allVideosInThatPage = `//*[@class="card video-cell "]/div/h3/a`;
+const logFilePath_videosWasntDownloaded = `./logs/not-downloaded-videos-${currentTime}.txt`;
+const allLogFile = `./logs/all-${currentTime}.txt`;
+writeToLogFile(allLogFile, `Целият лог:\n\n`);
 
 const downloadFolder = process.env.DOWNLOAD_PATH;
 informMessage(`ПРОВЕРКА И ПОДГОТОВКА ЗА ИЗПОЛЗВАНЕ НА СКРИПТА`);
@@ -54,14 +65,8 @@ if (headlessMode !== 'true') {
     }
 }
 
-// Get the current time in unix format
-const currentTime = getCurrentUnixTime();
-// Дефинираме локаторите използвани в страниците на vbox7
-const vbox7ChannelName = '//*[@class="left-col"]//h2//span';
-const channelPages = `//*[@class='page-link']`;
-const acceptCookiesButton = `//*[@id='didomi-notice-agree-button']`;
-const allVideosInThatPage = `//*[@class="card video-cell "]/div/h3/a`;
-const logFilePath = `./logs/not-downloaded-videos-${currentTime}.txt`;
+
+
 // Проверка дали съществува папката за сваляне на видео файловете от vbox7
 createFolderIfNotExists(`./logs/`);
 // Дефиниране на пътя на файла който съдържа списък с URL адреси на vbox7 каналите за сваляне
@@ -70,9 +75,8 @@ informMessage(`ЗАПОЧВАМЕ СВАЛЯНЕ НА ВИДЕОТА ОТ VBOX7 
 // Това е основния метод в този файл. Той отговаря за извикването на всички останали методи и за изпълнението на основната логика на скрипта за сваляне на видео файлове от vbox7 канали.
 // Знам, че е направен lame, бързах да завърша скрипта възможно най-бързо. А й нали работи ;).
 async function vbox7() {
-    // Добавяне на заглавие в log файла
-    writeToLogFile(logFilePath, `Ако виждате стойности по-долу в този log файл, това означава, че поради някаква причина някои видеа не са се свалили. Тези видеа са добавени в този log и могат да се свалят ръчно с помоща на един от двата инструмента посочени в секция 'Alternatives' от README.md файла.\n\nВидеа които не са се свалили:\n\n`);
-
+    // Добавяне на заглавие в log файловете
+    writeToLogFile(logFilePath_videosWasntDownloaded, `Ако виждате стойности по-долу в този log файл, това означава, че поради някаква причина някои видеа не са се свалили.\nТези видеа са добавени в този log и могат да се свалят ръчно с помоща на един от двата инструмента посочени в секция 'Alternatives' от README.md файла.\n\nВидеа които не са се свалили:\n`);
     // Да си дефинираме драйвъра
     let driver;
 
@@ -151,7 +155,7 @@ async function vbox7() {
                 // Минаване през всички видеа на текущата страница
                 for (let videoIndex = 1; videoIndex <= allVideos; videoIndex++) {
                     let videoRetryCount = 0;
-                    const maxVideoRetries = 2;
+                    const maxVideoRetries = 1;
 
                     while (videoRetryCount < maxVideoRetries) {
                         // Get the locator of element that we are using to navigate to the video page and click on it.
@@ -183,6 +187,9 @@ async function vbox7() {
 
                         // Get the URL of the video.
                         const videoUrl = await getAttributeOfElement(driver, videoLinkLocator, "href");
+                        // Get the ID of the video.
+                        const videoId = extractVideoIdFromVideoUrl(videoUrl);
+
                         // Извикване на extractMp4Urls за да получите MP4 файловете от страницата
                         const mp4Files = await extractMp4Urls(videoUrl);
                         const uniqueMp4Files = uniqueMp4Urls(mp4Files);
@@ -205,16 +212,27 @@ async function vbox7() {
                         else if (!uniqueMp4Files.some(element => element.includes(audioFileExist)) && !uniqueMp4Files.some(element => element.includes(videoFileExist))) {
                             informMessage("Видеото се намира на старите сървъри на vbox7.");
                             filteredMp4Files = filterNonBlankTracks(uniqueMp4Files);
-
                             if (filteredMp4Files.length === 0) {
-                                errorMessage(`Неуспешно извличане на MP4 URL адреси за видео '${videoName} номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}.`);
-                                videoRetryCount++;
-                                if (videoRetryCount === maxVideoRetries) {
-                                    informMessage("Достигнат максимален брой опити за извличане на видео файлове. Продължавам със следващия видео клип.");
-                                    alertMessage(`Видео файл с име: ${sanitizedVideoName} и URL адрес: ${videoUrl} няма да може да се свали!\nИнформацията за това видео е записана в log файла ${logFilePath}`);
-                                    writeToLogFile(logFilePath, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${videoUrl}\n\n`);
+                                // Алтернативен начин за извличане на видео файлове от vbox7. Това е алтернатива ако не успеем да прихванем URL адресите на видео файловете от vbox7 използвайки puppeteer.
+                                let url;
+                                try {
+                                    await postTask(videoId); // Изпълнение на POST заявката
+                                    const videoInfo: VideoInfo = await fetchVideoInfo(videoId); // Прихващане на отговора от GET заявката
+
+                                    // Достъпване на URL
+                                    url = videoInfo.result.url;
+                                } catch (error) {
+                                    errorMessage(`Неуспешно извличане на MP4 URL адреси за видео '${videoName} номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}.`);
+                                    videoRetryCount++;
+                                    if (videoRetryCount === maxVideoRetries) {
+                                        informMessage("Достигнат максимален брой опити за извличане на видео файлове. Продължавам със следващия видео клип.");
+                                        alertMessage(`Видео файл с име: ${sanitizedVideoName} и URL адрес: ${url} няма да може да се свали!`);
+                                        alertMessage(`Информацията за това видео е записана в log файла ${logFilePath_videosWasntDownloaded}`);
+                                        writeToLogFile(logFilePath_videosWasntDownloaded, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${url}\n\n`);
+                                    }
+                                    continue;
                                 }
-                                continue;
+                                filteredMp4Files = url ? [url] : [];
                             }
                         }
                         else {
@@ -223,7 +241,7 @@ async function vbox7() {
 
                         // Сваляне на MP4 файловете от страницата и записването им в папката за сваляне
                         for (let fileIndex = 0; fileIndex < filteredMp4Files.length; fileIndex++) {
-                            const maxRetries = 2;
+                            const maxRetries = 1;
                             for (let retry = 0; retry < maxRetries; retry++) {
                                 try {
                                     if (filteredMp4Files[fileIndex].includes('track1')) {
@@ -234,6 +252,10 @@ async function vbox7() {
                                         await downloadMp4File(filteredMp4Files[fileIndex], audioFilePath);
                                         successMessage(`Аудио файлът '${sanitizedVideoName}' от канала '${channelName}' е успешно свален след ${retry + 1} опит(а).`);
                                     }
+                                    else if (filteredMp4Files[fileIndex].includes(videoId) && fileIndex == 0) {
+                                        await downloadMp4File(filteredMp4Files[fileIndex], videoFilePath);
+                                        successMessage(`Видео файлът '${sanitizedVideoName}' от канала '${channelName}' е успешно свален след ${retry + 1} опит(а).`);
+                                    }
                                     else if (filteredMp4Files[fileIndex] && fileIndex == 0) {
                                         await downloadMp4File(filteredMp4Files[fileIndex], videoFilePath);
                                         successMessage(`Видео файлът '${sanitizedVideoName}' от канала '${channelName}' е успешно свален след ${retry + 1} опит(а).`);
@@ -243,12 +265,14 @@ async function vbox7() {
                                     }
                                     break;
                                 } catch (error) {
-                                    alertMessage(`Грешка при свалянето на файл '${sanitizedVideoName}' от канала '${channelName}'.\nНаправени са ${retry + 1} опита от общо ${maxRetries} зададени.\nПрихванатата грешка е:`, error);
-                                    errorMessage(`Видео файл с име: ${sanitizedVideoName} и URL адрес: ${videoUrl} не беше свален!\nИнформацията за това видео е записана в log файла ${logFilePath}`);
-                                    writeToLogFile(logFilePath, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${videoUrl}\n\n`);
+                                    alertMessage(`Грешка при свалянето на файл '${sanitizedVideoName}' от канала '${channelName}'`);
+                                    alertMessage(`Прихванатата грешка е:`, error);
+                                    errorMessage(`Видео файл с име: ${sanitizedVideoName} и URL адрес: ${videoUrl} не беше свален!`);
+                                    errorMessage(`Информацията за това видео е записана в log файла ${logFilePath_videosWasntDownloaded}`);
+                                    writeToLogFile(logFilePath_videosWasntDownloaded, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${videoUrl}\n\n`);
                                     if (retry === maxRetries) {
-                                        alertMessage(`Достигнати са максималения брой опити за сваляне на един файл. Продължаваме със следващия файл.\nИнформацията за това видео е записана в log файла ${logFilePath}`);
-                                        writeToLogFile(logFilePath, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${videoUrl}\n\n`);
+                                        alertMessage(`Достигнати са максималения брой опити за сваляне на един файл. Продължаваме със следващия файл.`);
+                                        alertMessage(`Информацията за това видео е записана в log файла ${logFilePath_videosWasntDownloaded}`);
                                     }
                                 }
                             }
@@ -269,7 +293,6 @@ async function vbox7() {
 vbox7();
 
 // От тук надолЕ са всички методи, които се използват в горния метод vbox7(). Дам няма POM оптимизация или друг шаблон. Уви няма време за това ;) !
-
 // Метод за намиране на елемент по XPath
 async function findElement(driver: WebDriver, xpath: string): Promise<WebElement> {
     // Проверка за уникалност на елемента
@@ -292,6 +315,24 @@ async function findElement(driver: WebDriver, xpath: string): Promise<WebElement
     }
 
     return element;
+}
+
+// New method to fill a text field
+async function fillTextField(driver: WebDriver, xpath: string, textToFill: string): Promise<void> {
+    // Find the element using your existing method
+    const element = await findElement(driver, xpath);
+
+    // Clear any existing text in the element
+    await element.clear();
+
+    // Fill the element with new text
+    await element.sendKeys(textToFill);
+
+    // Optional: Verify that the text has been correctly filled
+    const filledText = await element.getAttribute('value');
+    if (filledText !== textToFill) {
+        throw new Error(`Text in the element does not match the expected text. Expected: "${textToFill}", Found: "${filledText}"`);
+    }
 }
 
 // Метод за намиране на всички елементи по XPath
@@ -352,12 +393,12 @@ async function extractMp4Urls(url: string): Promise<string[]> { // Типизи�
     });
 
     await page.goto(url);
+    // Искам тук да добавя код, който да кликва на този елемент "//*[@id='bumper-player']"
     await new Promise(resolve => setTimeout(resolve, 10000));
 
     await browser.close();
     return mp4Urls;
 }
-
 
 // Метод за вземане на стойността на атрибут от елемент.
 async function getAttributeOfElement(driver: WebDriver, xpath: string, attributeName: string): Promise<string> {
@@ -469,12 +510,12 @@ function createFolderIfNotExists(folderPath: string): void {
         try {
             // Създайте папката
             fs.mkdirSync(folderPath);
-            console.log(`Създадена нова папка: ${folderPath}`);
+            informMessage(`Създадена нова папка: ${folderPath}`);
         } catch (error) {
-            console.error(`Грешка при създаване на папка: ${error}`);
+            errorMessage(`Грешка при създаване на папка: ${error}`);
         }
     } else {
-        console.log(`Папката вече съществува: ${folderPath}`);
+        informMessage(`Папката вече съществува: ${folderPath}`);
     }
 }
 
@@ -490,21 +531,121 @@ function doesFileExist(filePath: string): boolean {
 }
 
 // Функция за извеждане на оцветено съобщение в конзолата
-function alertMessage(text: string, error?: unknown): void {
+function alertMessage(text: string, error: unknown = ""): void {
+    const textContent = `Alert:     ${text}`;
     console.log(`\x1b[33m${text}\x1b[0m`, error); // Оцветява текста в жълто и извежда го в конзолата
+    writeToLogFile(allLogFile, `${textContent}`);
 }
 
 // Функция за извеждане на текст в синьо
-function informMessage(text: string): void {
-    console.log(`\x1b[34m${text}\x1b[0m`); // Син цвят
+function informMessage(text: string, error: unknown = ""): void {
+    const textContent = `info:      ${text}`;
+    console.log(`\x1b[34m${text}\x1b[0m`, error); // Син цвят
+    writeToLogFile(allLogFile, `${textContent}`);
 }
 
 // Функция за извеждане на текст в червено
-function errorMessage(text: string): void {
-    console.log(`\x1b[31m${text}\x1b[0m`); // Червен цвят
+function errorMessage(text: string, error: unknown = ""): void {
+    const textContent = `ERROR:     ${text}`;
+    console.log(`\x1b[31m${text}\x1b[0m`, error); // Червен цвят
+    writeToLogFile(allLogFile, `${textContent}`);
 }
 
 // Функция за извеждане на текст в зелено
-function successMessage(text: string): void {
-    console.log(`\x1b[32m${text}\x1b[0m`); // Зелен цвят
+function successMessage(text: string, error: unknown = ""): void {
+    const textContent = `success:   ${text}`;
+    console.log(`\x1b[32m${text}\x1b[0m`, error); // Зелен цвят
+    writeToLogFile(allLogFile, `${textContent}`);
+}
+
+//* Сваляне на видео използвайки системата на downloader.tube (това е алтернатива ако не успеем да прихванем URL адресите на видео файловете от vbox7 използвайки puppeteer) *//
+// Определете интерфейса на данните, които очаквате от втората заявка
+interface VideoInfo {
+    id: string;
+    result: {
+        // Добавете тук другите свойства, които очаквате в обекта 'result'
+        url: string;
+        // ...
+    };
+    state: string;
+    type: string;
+}
+
+// Функция за изпълнение на POST заявка
+async function postTask(videoId: string): Promise<void> {
+    const url = 'https://api02.downloader.tube/tasks';
+    const data = {
+        type: 'info',
+        url: `https://www.vbox7.com/play:${videoId}`
+    };
+    const headers = {
+        'Content-Length': '59', // Този хедър обикновено се управлява автоматично от Axios
+        'Sec-Ch-Ua': 'Chromium;v="121", Not A(Brand;v="99"',
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.85 Safari/537.36',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Origin': 'https://downloader.tube',
+        'Sec-Fetch-Site': 'same-site',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+        'Referer': 'https://downloader.tube/',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Priority': 'u=1, i'
+    };
+
+    try {
+        await axios.post(url, data, { headers });
+    } catch (error) {
+        console.error('Error in POST request:', error);
+        throw error;
+    }
+}
+
+// Функция за изпълнение на GET заявка
+async function fetchVideoInfo(videoId: string): Promise<VideoInfo> {
+    const url = `https://api02.downloader.tube/videos/Vbox7-${videoId}-info`;
+    const headers = {
+        'Sec-Ch-Ua': 'Chromium;v="121", Not A(Brand;v="99"',
+        'Accept': 'application/json, text/plain, */*',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.85 Safari/537.36',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Origin': 'https://downloader.tube',
+        'Sec-Fetch-Site': 'same-site',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+        'Referer': 'https://downloader.tube/',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Priority': 'u=4, i'
+    };
+
+    try {
+        const response: AxiosResponse<VideoInfo> = await axios.get(url, { headers });
+        return response.data;
+    } catch (error) {
+        console.error('Error in GET request:', error);
+        throw error;
+    }
+}
+
+// Функция за извличане на видео ID-то от URL адреса на видеото
+function extractVideoIdFromVideoUrl(inputString: string): string {
+    const delimiter = 'https://www.vbox7.com/play:';
+
+    // Използваме метода split, за да разделим низа по указания разделител
+    const parts = inputString.split(delimiter);
+
+    // Проверяваме дали имаме поне две части след разделението
+    if (parts.length >= 2) {
+        // Използваме slice, за да вземем дясната част на низа след разделителя
+        const rightPart = parts[1];
+        return rightPart;
+    } else {
+        // Ако няма дясна част, можем да върнем празен низ или друг стойност, която е подходяща за вашата логика
+        return '';
+    }
 }
