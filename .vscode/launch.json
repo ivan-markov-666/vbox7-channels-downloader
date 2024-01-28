@@ -8,7 +8,7 @@
             "runtimeExecutable": "npm",
             "runtimeArgs": [
                 "run",
-                "vbox"
+                "vbox7"
             ],
             "skipFiles": [
                 "<node_internals>/**"
