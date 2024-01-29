@@ -191,7 +191,7 @@ async function vbox7() {
                         const videoId = extractVideoIdFromVideoUrl(videoUrl);
 
                         // Извикване на extractMp4Urls за да получите MP4 файловете от страницата
-                        const mp4Files = await extractMp4Urls(videoUrl);
+                        const mp4Files = await extractMp4Urls(videoUrl, sanitizedVideoName, channelName);
                         const uniqueMp4Files = uniqueMp4Urls(mp4Files);
 
                         // Define the strings that we are looking for in the array of mp4 files.
@@ -377,27 +377,40 @@ async function getElementText(element: WebElement): Promise<string> {
 }
 
 // Метод за извличане на MP4 файлове от страница
-async function extractMp4Urls(url: string): Promise<string[]> { // Типизиране на 'url' и връщаемия тип
-    const browser = await puppeteer.launch({
-        headless: "new" // Използване на новия headless режим
-    });
-    const page = await browser.newPage();
-    const mp4Urls: string[] = []; // Указване на типа на mp4Urls
+async function extractMp4Urls(url: string, sanitizedVideoName: string, channelName?: string): Promise<string[]> { // Типизиране на 'url' и връщаемия тип
+    try {
+        const browser = await puppeteer.launch({
+            headless: "new" // Използване на новия headless режим
+        });
+        const page = await browser.newPage();
+        const mp4Urls: string[] = []; // Указване на типа на mp4Urls
 
-    // Наслушване на мрежовия трафик
-    page.on('response', (response: any) => {
-        const url = response.url();
-        if (url.endsWith('.mp4')) {
-            mp4Urls.push(url);
+        // Наслушване на мрежовия трафик
+        page.on('response', (response: any) => {
+            const url = response.url();
+            if (url.endsWith('.mp4')) {
+                mp4Urls.push(url);
+            }
+        });
+
+        await page.goto(url);
+        // Искам тук да добавя код, който да кликва на този елемент "//*[@id='bumper-player']"
+        await new Promise(resolve => setTimeout(resolve, 20000));
+
+        await browser.close();
+        return mp4Urls;
+    }
+    catch (error) {
+        errorMessage(`Неуспешно извличане на MP4 URL адрес/и за видео '${url}'.`);
+        errorMessage(`Прихванатата грешка е:`, error);
+        errorMessage(`Информацията за това видео е записана в log файла ${logFilePath_videosWasntDownloaded}`);
+        if (channelName) {
+            writeToLogFile(logFilePath_videosWasntDownloaded, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${url}\n\n`);
+        } else {
+            writeToLogFile(logFilePath_videosWasntDownloaded, `Видео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${url}\n\n`);
         }
-    });
-
-    await page.goto(url);
-    // Искам тук да добавя код, който да кликва на този елемент "//*[@id='bumper-player']"
-    await new Promise(resolve => setTimeout(resolve, 10000));
-
-    await browser.close();
-    return mp4Urls;
+    }
+    return [];
 }
 
 // Метод за вземане на стойността на атрибут от елемент.
