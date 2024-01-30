@@ -8,7 +8,7 @@
             "runtimeExecutable": "npm",
             "runtimeArgs": [
                 "run",
-                "vbox7"
+                "videos"
             ],
             "skipFiles": [
                 "<node_internals>/**"

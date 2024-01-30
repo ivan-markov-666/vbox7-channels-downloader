@@ -2,4 +2,5 @@ node_modules
 .env
 download
 logs
-downloadChannels
+downloadVideos.txt
+downloadChannels.txt

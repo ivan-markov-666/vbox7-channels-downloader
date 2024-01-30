@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "vbox7": "ts-node vbox7.ts"
+    "channels": "ts-node downloadChannels.ts",
+    "videos": "ts-node downloadVideos.ts"
   },
   "keywords": [],
   "author": "Ivan Markov",

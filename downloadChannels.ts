@@ -20,11 +20,10 @@ const channelPages = `//*[@class='page-link']`;
 const acceptCookiesButton = `//*[@id='didomi-notice-agree-button']`;
 const allVideosInThatPage = `//*[@class="card video-cell "]/div/h3/a`;
 const logFilePath_videosWasntDownloaded = `./logs/not-downloaded-videos-${currentTime}.txt`;
-const allLogFile = `./logs/all-${currentTime}.txt`;
+const allLogFile = `./logs/all-channels${currentTime}.txt`;
 writeToLogFile(allLogFile, `Целият лог:\n\n`);
 
 const downloadFolder = process.env.DOWNLOAD_PATH;
-informMessage(`ПРОВЕРКА И ПОДГОТОВКА ЗА ИЗПОЛЗВАНЕ НА СКРИПТА`);
 // Проверка с оператора == null
 if (downloadFolder == null) {
     throw new Error('Стойността на downloadFolder е null.');
@@ -65,16 +64,14 @@ if (headlessMode !== 'true') {
     }
 }
 
-
-
 // Проверка дали съществува папката за сваляне на видео файловете от vbox7
 createFolderIfNotExists(`./logs/`);
 // Дефиниране на пътя на файла който съдържа списък с URL адреси на vbox7 каналите за сваляне
 const channelsInArray = readLinesFromFile(downloadChannelsTxtFilePath);
-informMessage(`ЗАПОЧВАМЕ СВАЛЯНЕ НА ВИДЕОТА ОТ VBOX7 КАНАЛИТЕ`);
+
 // Това е основния метод в този файл. Той отговаря за извикването на всички останали методи и за изпълнението на основната логика на скрипта за сваляне на видео файлове от vbox7 канали.
 // Знам, че е направен lame, бързах да завърша скрипта възможно най-бързо. А й нали работи ;).
-async function vbox7() {
+export async function vbox7() {
     // Добавяне на заглавие в log файловете
     writeToLogFile(logFilePath_videosWasntDownloaded, `Ако виждате стойности по-долу в този log файл, това означава, че поради някаква причина някои видеа не са се свалили.\nТези видеа са добавени в този log и могат да се свалят ръчно с помоща на един от двата инструмента посочени в секция 'Alternatives' от README.md файла.\n\nВидеа които не са се свалили:\n`);
     // Да си дефинираме драйвъра
@@ -154,9 +151,11 @@ async function vbox7() {
                 const allVideos = await countElements(driver, allVideosInThatPage);
                 // Минаване през всички видеа на текущата страница
                 for (let videoIndex = 1; videoIndex <= allVideos; videoIndex++) {
+                    // Това са променливи (флагове) използвани за изготвянето на механизъм за повторен опит за сваляне, ако не успеем да извлечем URL адресите на видео файловете от vbox7.
+                    // Първо ползвах опцията, после добавих и втори подход за изтегляне на видеата които бяха зад login wall. Тоест механизма е оставен като функционалност, но не се използва, защото в моемнта няма да се опита отново да свали файла, ако не успее. Файловете които не могат да се свалят, са недостъпни, защото самите Vbox7 не могат да ги предоставят, но имат линкове за тях.
                     let videoRetryCount = 0;
                     const maxVideoRetries = 1;
-
+                    // И започваме да върим толкова пъти, колкото е максималния брой опити за сваляне на видео файлове от vbox7.
                     while (videoRetryCount < maxVideoRetries) {
                         // Get the locator of element that we are using to navigate to the video page and click on it.
                         let videoLinkLocator = `(${allVideosInThatPage})[${videoIndex}]`;
