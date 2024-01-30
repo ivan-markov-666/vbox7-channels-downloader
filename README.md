@@ -19,18 +19,22 @@ The most of the comments in the code are in Bulgarian, because the project is fo
     That means you need to provide empty folder path in the '.env' file. You can use absolute or relative path.
 - Add the channels you want to download in a TXT file in 'DOWNLOAD_CHANNELS_TXT_FILE_PATH' variable.  
     That means you need to create new txt file and put there URLs of the channels, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.  
-    It is IMPORTANT to add one channel per line! 
+    It is IMPORTANT to add one channel per line!  
+- Add the video URLs you want to download in a TXT file in 'DOWNLOAD_VIDEOS_TXT_FILE_PATH' variable.  
+    That means you need to create new txt file and put there URLs of the videos, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.  
+    It is IMPORTANT to add one video per line!
 - Switch between 'true' and 'false' to use headless mode or not.  
     If you want to see the browser while scraping, set 'false'.  
     If you want to scrape in background, set 'true'.
 
 ### Usage ###
-1. Run `npm run vbox7` command in the terminal to start scraping
-2. The robot generates two log files.  
-    - The first one is `./logs/all-${unix-time}.txt` and contains the names and urls of the downloaded videos.
+1. Run `npm run channels` command in the terminal to start scraping the channels.
+2. Run `npm run videos` command in the terminal to start scraping the videos.
+3. The robot generates two log files.  
+    - The first one is `./logs/all-channels-${unix-time}.txt` or `./logs/all-videos-${unix-time}.txt` and contains log of actions that the robot has done.
     - The second one is `./logs/not-downloaded-videos-${unix-time}.txt` and contains the names and urls of the videos, that are not downloaded. You can download them manually. 
-3. If you want to download the videos again, you can run `npm run vbox7` command again. The bot will skip the already downloaded videos and will download only the missing ones.
-4. There is a debug mechanism, but you can use it only with VS Code. For more details see the `./.vscode/launch.json` file.
+4. If you want to download the videos again, you can run `npm run channels` command again. The bot will skip the already downloaded videos and will download only the missing ones.
+5. There is a debug mechanism, but you can use it only with VS Code. For more details see the `./.vscode/launch.json` file.
 
 ### Alternatives ###
 If you can't use the bot for some reason you can use one of the following alternatives for downloading the videos directly from the browser:
