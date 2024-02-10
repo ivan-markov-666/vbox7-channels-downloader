@@ -3,7 +3,7 @@
  * Коментарите са на нашия си език (с малки изключения), защото този код е предназначен за българи.
  */
 
-import { Builder, WebDriver, WebElement, By, Key, until } from 'selenium-webdriver';
+import { Builder, WebDriver, WebElement, By, until } from 'selenium-webdriver';
 import 'chromedriver';
 import axios, { AxiosResponse } from 'axios';
 import fs from 'fs';
@@ -81,8 +81,7 @@ export async function vbox7() {
     if (headlessMode === 'true') {
         // Настройка на опции за Chrome, за да работи в headless режим
         let chromeOptions = new Options();
-        chromeOptions.addArguments("--headless");
-
+        chromeOptions.addArguments("--headless").addExtensions('C:/Users/test657/Desktop/vbox7/vbox7-channels-downloader/GIGHMMPIOBKLFEPJOCNAMGKKBIGLIDOM_5_18_0_0.crx');
         // Стартиране на Chrome браузъра в headless режим
         driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
     }
@@ -221,15 +220,23 @@ export async function vbox7() {
                                     // Достъпване на URL
                                     url = videoInfo.result.url;
                                 } catch (error) {
-                                    errorMessage(`Неуспешно извличане на MP4 URL адреси за видео '${videoName} номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}.`);
-                                    videoRetryCount++;
-                                    if (videoRetryCount === maxVideoRetries) {
-                                        informMessage("Достигнат максимален брой опити за извличане на видео файлове. Продължавам със следващия видео клип.");
-                                        alertMessage(`Видео файл с име: ${sanitizedVideoName} и URL адрес: ${url} няма да може да се свали!`);
-                                        alertMessage(`Информацията за това видео е записана в log файла ${logFilePath_videosWasntDownloaded}`);
-                                        writeToLogFile(logFilePath_videosWasntDownloaded, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${url}\n\n`);
+                                    // Защото и алтернативния начин се проваля, ще пробваме по още един (на практика 3ти начин) за сваляне на видео файлове от vbox7.
+                                    try {
+                                        informMessage(`Ще опитаме да свалим видео файлът '${sanitizedVideoName}' от канала '${channelName} използвайки 3ти начин за сваляне на видео файлове от vbox7.`);
+                                        await downloadApproachThree(driver, videoId, onlyVideoFilePath, vbox7ChannelName, sanitizedVideoName);
+                                        successMessage(`Видео файлът '${sanitizedVideoName}' от канала '${channelName}' е успешно свален.`);
                                     }
-                                    continue;
+                                    catch (error) {
+                                        errorMessage(`Неуспешно извличане на MP4 URL адреси за видео '${videoName} номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}.`);
+                                        videoRetryCount++;
+                                        if (videoRetryCount === maxVideoRetries) {
+                                            informMessage("Достигнат максимален брой опити за извличане на видео файлове. Продължавам със следващия видео клип.");
+                                            alertMessage(`Видео файл с име: ${sanitizedVideoName} и URL адрес: ${url} няма да може да се свали!`);
+                                            alertMessage(`Информацията за това видео е записана в log файла ${logFilePath_videosWasntDownloaded}`);
+                                            writeToLogFile(logFilePath_videosWasntDownloaded, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${url}\n\n`);
+                                        }
+                                        continue;
+                                    }
                                 }
                                 filteredMp4Files = url ? [url] : [];
                             }
@@ -260,7 +267,30 @@ export async function vbox7() {
                                         successMessage(`Видео файлът '${sanitizedVideoName}' от канала '${channelName}' е успешно свален след ${retry + 1} опит(а).`);
                                     }
                                     else {
-                                        throw new Error(`Изглежда, че не са подадени mp4 файлове за сваляне. Този statement не трябва да се случва. Вероятно има друг сценарий (за начина по който Vbox7 предоставят видеата си) който не е обхванат тук. Тоест happy debbuging :) !`);
+                                        // тука
+                                        // Алтернативен начин за извличане на видео файлове от vbox7. Това е алтернатива ако не успеем да прихванем URL адресите на видео файловете от vbox7 използвайки puppeteer.
+                                        let url;
+                                        try {
+                                            await postTask(videoId); // Изпълнение на POST заявката
+                                            const videoInfo: VideoInfo = await fetchVideoInfo(videoId); // Прихващане на отговора от GET заявката
+
+                                            // Достъпване на URL
+                                            url = videoInfo.result.url;
+                                        } catch (error) {
+                                            errorMessage(`Неуспешно извличане на MP4 URL адреси за видео '${videoName} номер ${videoIndex}. Опит ${videoRetryCount + 1} от ${maxVideoRetries}.`);
+                                            videoRetryCount++;
+                                            if (videoRetryCount === maxVideoRetries) {
+                                                informMessage("Достигнат максимален брой опити за извличане на видео файлове. Продължавам със следващия видео клип.");
+                                                alertMessage(`Видео файл с име: ${sanitizedVideoName} и URL адрес: ${url} няма да може да се свали!`);
+                                                alertMessage(`Информацията за това видео е записана в log файла ${logFilePath_videosWasntDownloaded}`);
+                                                writeToLogFile(logFilePath_videosWasntDownloaded, `Канал: ${channelName}\nВидео файл с име: ${sanitizedVideoName}\nURL адрес на видео файла: ${url}\n\n`);
+                                            }
+                                            continue;
+                                        }
+                                        filteredMp4Files = url ? [url] : [];
+
+                                        await downloadMp4File(filteredMp4Files[fileIndex], videoFilePath);
+                                        successMessage(`Видео файлът '${sanitizedVideoName}' от канала '${channelName}' е успешно свален след ${retry + 1} опит(а).`);
                                     }
                                     break;
                                 } catch (error) {
@@ -660,4 +690,63 @@ function extractVideoIdFromVideoUrl(inputString: string): string {
         // Ако няма дясна част, можем да върнем празен низ или друг стойност, която е подходяща за вашата логика
         return '';
     }
+}
+
+async function downloadApproachThree(driver: WebDriver, videoUrl: string, downloadFilePath: string, vbox7ChannelNameе: string, videoName: string) {
+    try {
+        // Отваряне на нов таб
+        await driver.executeScript('window.open()');
+
+        // Превключване към новия таб
+        const tabs = await driver.getAllWindowHandles();
+        await driver.switchTo().window(tabs[1]); // Превключване към втория таб
+
+        // Навигация до сайта
+        await driver.get('https://downloader.tube/download-vbox7-video/');
+
+        // Попълване на полето със стойността от променливата videoUrl
+        await driver.findElement(By.xpath('//input[@placeholder="Paste Link Here"]')).sendKeys(`https://www.vbox7.com/play:${videoUrl}`);
+        // Кликване върху рекламата.
+        await driver.findElement(By.xpath("//*[@id='___gatsby']/following::a")).click();
+        // Натискане на бутона за сваляне
+        await driver.findElement(By.xpath('//input[@placeholder="Paste Link Here"]/parent::form/button')).click();
+
+        // Чакане за появата на хиперлинка
+        await driver.wait(until.elementLocated(By.xpath('//a[@rel="noreferrer"]')), 10000); // Чака до 10 секунди
+
+        // Взимане на стойността на атрибута 'href'
+        const downloadLink = await driver.findElement(By.xpath('//a[@rel="noreferrer"]')).getAttribute('href');
+
+        // Тук добавете вашата логика за сваляне на файла в указаната директория
+        // За сваляне може да използвате външни библиотеки или да изпратите заявка към URL адреса на хиперлинка
+        console.log('Download link:', downloadLink);
+
+        try {
+            await downloadMp4File(downloadLink, downloadFilePath);
+        }
+        catch (error) {
+            errorMessage('Грешка при свалянето на видео файл с име ' + videoName + ' от канал с име ' + vbox7ChannelNameе);
+        }
+
+        // Затваряне на текущия таб
+        await driver.close();
+
+        // Превключване обратно към първоначалния таб
+        await driver.switchTo().window(tabs[0]);
+    } finally {
+        // Затваряне на браузъра (опционално, ако искате да продължите работа в първия таб, не го затваряйте)
+        // await driver.quit();
+    }
+}
+
+// Функция за изчакване (sleep)
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Пример за използване на функцията sleep
+async function wait(seconds: number) {
+    informMessage('Изчакване започва');
+    await sleep(seconds * 1000); // Изчаквайте за определен брой секунди
+    informMessage('Изчакването приключи');
 }

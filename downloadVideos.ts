@@ -17,9 +17,7 @@ const currentTime = getCurrentUnixTime();
 // Дефинираме локаторите използвани в страниците на vbox7
 const vbox7ChannelName = `(//*[@class='channel-name']/span)[1]`;
 const videoNameLocator = `//*[@class="video-info"]/h1`;
-const channelPages = `//*[@class='page-link']`;
 const acceptCookiesButton = `//*[@id='didomi-notice-agree-button']`;
-const allVideosInThatPage = `//*[@class="card video-cell "]/div/h3/a`;
 const logFilePath_videosWasntDownloaded = `./logs/not-downloaded-videos-${currentTime}.txt`;
 const allLogFile = `./logs/all-videos-${currentTime}.txt`;
 writeToLogFile(allLogFile, `Целият лог:\n\n`);
@@ -234,7 +232,14 @@ export async function vbox7() {
                     }
                 }
                 else {
-                    throw new Error("Изглежда, че mp4 файловете не идват нито от старите, нито от новите сървъри на Vbox7, или има друга грешка. При всяка вероятност трябва да се разбере, защо сме изпаднали в този statement. Тоест... happy debbuging :) !");
+                    // Защото и алтернативния начин се проваля, ще пробваме по още един (на практика 3ти начин) за сваляне на видео файлове от vbox7.
+                    try {
+                        informMessage(`Ще опитаме да свалим видео файлът '${sanitizedVideoName}' от канала '${channelName} използвайки 3ти начин за сваляне на видео файлове от vbox7.`);
+                        await downloadApproachThree(driver, videoId, onlyVideoFilePath, vbox7ChannelName, sanitizedVideoName);
+                        successMessage(`Видео файлът '${sanitizedVideoName}' от канала '${channelName}' е успешно свален.`);
+                    } catch (error) {
+                        errorMessage("Неуспешно сваляне на видео файл с име " + sanitizedVideoName + " от канала " + channelName + " използвайки 3ти начин за сваляне на видео файлове от vbox7.");
+                    }
                 }
 
                 // Сваляне на MP4 файловете от страницата и записването им в папката за сваляне
@@ -659,4 +664,63 @@ function extractVideoIdFromVideoUrl(inputString: string): string {
         // Ако няма дясна част, можем да върнем празен низ или друг стойност, която е подходяща за вашата логика
         return '';
     }
+}
+
+async function downloadApproachThree(driver: WebDriver, videoUrl: string, downloadFilePath: string, vbox7ChannelNameе: string, videoName: string) {
+    try {
+        // Отваряне на нов таб
+        await driver.executeScript('window.open()');
+
+        // Превключване към новия таб
+        const tabs = await driver.getAllWindowHandles();
+        await driver.switchTo().window(tabs[1]); // Превключване към втория таб
+
+        // Навигация до сайта
+        await driver.get('https://downloader.tube/download-vbox7-video/');
+
+        // Попълване на полето със стойността от променливата videoUrl
+        await driver.findElement(By.xpath('//input[@placeholder="Paste Link Here"]')).sendKeys(`https://www.vbox7.com/play:${videoUrl}`);
+        // Кликване върху рекламата.
+        await driver.findElement(By.xpath("//*[@id='___gatsby']/following::a")).click();
+        // Натискане на бутона за сваляне
+        await driver.findElement(By.xpath('//input[@placeholder="Paste Link Here"]/parent::form/button')).click();
+
+        // Чакане за появата на хиперлинка
+        await driver.wait(until.elementLocated(By.xpath('//a[@rel="noreferrer"]')), 10000); // Чака до 10 секунди
+
+        // Взимане на стойността на атрибута 'href'
+        const downloadLink = await driver.findElement(By.xpath('//a[@rel="noreferrer"]')).getAttribute('href');
+
+        // Тук добавете вашата логика за сваляне на файла в указаната директория
+        // За сваляне може да използвате външни библиотеки или да изпратите заявка към URL адреса на хиперлинка
+        console.log('Download link:', downloadLink);
+
+        try {
+            await downloadMp4File(downloadLink, downloadFilePath);
+        }
+        catch (error) {
+            errorMessage('Грешка при свалянето на видео файл с име ' + videoName + ' от канал с име ' + vbox7ChannelNameе);
+        }
+
+        // Затваряне на текущия таб
+        await driver.close();
+
+        // Превключване обратно към първоначалния таб
+        await driver.switchTo().window(tabs[0]);
+    } finally {
+        // Затваряне на браузъра (опционално, ако искате да продължите работа в първия таб, не го затваряйте)
+        // await driver.quit();
+    }
+}
+
+// Функция за изчакване (sleep)
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Пример за използване на функцията sleep
+async function wait(seconds: number) {
+    informMessage('Изчакване започва');
+    await sleep(seconds * 1000); // Изчаквайте за определен брой секунди
+    informMessage('Изчакването приключи');
 }
