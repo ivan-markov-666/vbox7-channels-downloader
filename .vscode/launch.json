@@ -8,7 +8,7 @@
             "runtimeExecutable": "npm",
             "runtimeArgs": [
                 "run",
-                "videos"
+                "channels"
             ],
             "skipFiles": [
                 "<node_internals>/**"
