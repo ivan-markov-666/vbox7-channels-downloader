@@ -81,7 +81,7 @@ export async function vbox7() {
     if (headlessMode === 'true') {
         // Настройка на опции за Chrome, за да работи в headless режим
         let chromeOptions = new Options();
-        chromeOptions.addArguments("--headless").addExtensions('C:/Users/test657/Desktop/vbox7/vbox7-channels-downloader/GIGHMMPIOBKLFEPJOCNAMGKKBIGLIDOM_5_18_0_0.crx');
+        chromeOptions.addArguments("--headless").addExtensions('./GIGHMMPIOBKLFEPJOCNAMGKKBIGLIDOM_5_18_0_0.crx');
         // Стартиране на Chrome браузъра в headless режим
         driver = await new Builder().forBrowser('chrome').setChromeOptions(chromeOptions).build();
     }
