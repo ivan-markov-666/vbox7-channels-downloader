@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "channels": "ts-node downloadChannels.ts",
-    "channelsFalorites": "ts-node downloadChannelsFavorites.ts",    
+    "channelsFalorites": "ts-node downloadChannelsFavorites.ts",
+    "channelsLikes": "ts-node downloadChannelsLikes.ts",
     "videos": "ts-node downloadVideos.ts"
   },
   "keywords": [],
