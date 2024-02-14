@@ -25,6 +25,9 @@ The most of the comments in the code are in Bulgarian, because the project is fo
 - Add the channels favorites URLs you want to download in a TXT file in 'DOWNLOAD_CHANNELS_FAVORITES_TXT_FILE_PATH' variable.  
     That means you need to create new txt file and put there URLs of the channel favorites, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.  
     It is IMPORTANT to add one video per line!
+- Add the channels likes URLs you want to download in a TXT file in 'DOWNLOAD_CHANNELS_LIKES_TXT_FILE_PATH' variable.  
+    That means you need to create new txt file and put there URLs of the channel likes, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.  
+    This functionality will works only with one (your) channel, because the likes are private! So you need to add your channel likes URL in the file.
 - Switch between 'true' and 'false' to use headless mode or not.  
     If you want to see the browser while scraping, set 'false'.  
     If you want to scrape in background, set 'true'.
@@ -33,11 +36,13 @@ The most of the comments in the code are in Bulgarian, because the project is fo
 1. Run `npm run channels` command in the terminal to start scraping the channels.
 2. Run `npm run videos` command in the terminal to start scraping the videos.
 3. Run `npm run channelsFalorites` command in the terminal to start scraping the favorites videos.
-3. The robot generates two log files.  
+4. Run `npm run channelsLikes` command in the terminal to start scraping the likes videos. The likes are private, so you need to login in the browser.  
+    The bot will open the browser and will wait for you to login manually (sorry no time for automate that). After that the bot will continue with the scraping.
+5. The robot generates two log files.  
     - The first one is `./logs/all-channels-${unix-time}.txt` or `./logs/all-videos-${unix-time}.txt` and contains log of actions that the robot has done.
     - The second one is `./logs/not-downloaded-videos-${unix-time}.txt` and contains the names and urls of the videos, that are not downloaded. You can download them manually. 
-4. If you want to download the videos again, you can run `npm run channels` command again. The bot will skip the already downloaded videos and will download only the missing ones.
-5. There is a debug mechanism, but you can use it only with VS Code. For more details see the `./.vscode/launch.json` file.
+6. If you want to download the videos again, you can run `npm run channels` command again. The bot will skip the already downloaded videos and will download only the missing ones.
+7. There is a debug mechanism, but you can use it only with VS Code. For more details see the `./.vscode/launch.json` file.
 
 ### Alternatives ###
 If you can't use the bot for some reason you can use one of the following alternatives for downloading the videos directly from the browser:
