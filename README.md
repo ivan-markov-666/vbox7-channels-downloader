@@ -21,7 +21,9 @@ The most of the comments in the code are in Bulgarian, because the project is fo
     That means you need to create new txt file and put there URLs of the channels, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.  
     It is IMPORTANT to add one channel per line!  
 - Add the video URLs you want to download in a TXT file in 'DOWNLOAD_VIDEOS_TXT_FILE_PATH' variable.  
-    That means you need to create new txt file and put there URLs of the videos, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.  
+    That means you need to create new txt file and put there URLs of the videos, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.
+- Add the channels favorites URLs you want to download in a TXT file in 'DOWNLOAD_CHANNELS_FAVORITES_TXT_FILE_PATH' variable.  
+    That means you need to create new txt file and put there URLs of the channel favorites, that you want to scrap. Add that file path to '.env' file. You can use absolute or relative path.  
     It is IMPORTANT to add one video per line!
 - Switch between 'true' and 'false' to use headless mode or not.  
     If you want to see the browser while scraping, set 'false'.  
@@ -30,6 +32,7 @@ The most of the comments in the code are in Bulgarian, because the project is fo
 ### Usage ###
 1. Run `npm run channels` command in the terminal to start scraping the channels.
 2. Run `npm run videos` command in the terminal to start scraping the videos.
+3. Run `npm run channelsFalorites` command in the terminal to start scraping the favorites videos.
 3. The robot generates two log files.  
     - The first one is `./logs/all-channels-${unix-time}.txt` or `./logs/all-videos-${unix-time}.txt` and contains log of actions that the robot has done.
     - The second one is `./logs/not-downloaded-videos-${unix-time}.txt` and contains the names and urls of the videos, that are not downloaded. You can download them manually. 
